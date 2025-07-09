@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมบันทึกลูกหนี้ by MW</title>
+    <style>
+        /* CSS สำหรับจัดหน้าตา */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+        h1, h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0e1;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        /* Changed h1 size for "โปรแกรมบันทึกลูกหนี้ by MW" */
+        h1 {
+            font-size: 1.2em; /* Smaller size */
+            white-space: nowrap; /* Prevent wrapping on one line if possible */
+            overflow: hidden; /* Hide overflow if it still wraps */
+            text-overflow: ellipsis; /* Add ellipsis if text is too long */
+        }
+        h2 {
+            font-size: 1.3em;
+        }
+        .dashboard, .debtor-detail, .add-debtor-section, .edit-debtor-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .dashboard-header {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        /* Adjusted positioning for date and button */
+        .dashboard-header .btn { /* For "เพิ่มลูกหนี้ใหม่" button */
+            order: 1; /* Keep button at start */
+            margin-bottom: 5px; /* Add some space below button before date if wraps */
+        }
+        .current-date {
+            font-size: 0.9em;
+            color: #555;
+            white-space: nowrap;
+            order: 2; /* Position date after button */
+            margin-left: 10px; /* Space from button */
+        }
+        /* Media query for smaller screens to bring date closer */
+        @media (max-width: 600px) {
+            .dashboard-header {
+                flex-direction: column; /* Stack items vertically */
+                align-items: flex-start; /* Align to start */
+            }
+            .current-date {
+                margin-left: 0; /* Remove left margin */
+                margin-top: 5px; /* Add top margin below button */
+                font-size: 0.85em; /* Slightly smaller for mobile */
+            }
+            .dashboard-header .btn {
+                width: 100%; /* Make button full width on small screens */
+                box-sizing: border-box;
+            }
+        }
+
+
+        .debtor-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+            gap: 10px;
+        }
+        .debtor-card {
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: row; /* Default to row for horizontal layout */
+            justify-content: space-between; /* Space out content and button */
+            align-items: center; /* Vertically align items */
+            position: relative;
+            cursor: pointer; /* Default cursor is pointer for clicking */
+        }
+        /* Styling for cards in sorting mode */
+        .debtor-card.sorting-mode {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15); /* More pronounced shadow */
+            border: 2px solid #007bff; /* Blue border to indicate sorting mode */
+            cursor: grab; /* Indicates draggable in sorting mode */
+        }
+        .debtor-card.dragging {
+            opacity: 0.8; /* Slightly less opaque for dragging state */
+            transform: scale(1.05); /* Lift and scale up slightly when dragging */
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2); /* More pronounced shadow */
+            z-index: 1000; /* Bring dragged item to front */
+            /* Do not set position:absolute/fixed here, handled by JS */
+        }
+        .debtor-card:not(.sorting-mode):hover { /* Apply hover only when NOT in sorting mode */
+            transform: translateY(-3px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .debtor-card-info { /* Container for name, debt and eye button */
+            flex-grow: 1; /* Allow info to take available space */
+            white-space: nowrap; /* Prevent wrapping for name/debt */
+            overflow: hidden; /* Hide overflow if text is too long */
+            text-overflow: ellipsis; /* Add ellipsis for overflow */
+            cursor: inherit; /* Inherit cursor from parent (.debtor-card) */
+            display: flex; /* Use flex for contents within info */
+            flex-direction: column; /* Stack name and debt for larger screens */
+            align-items: flex-start; /* Align text to start */
+        }
+        
+        .debtor-card h3 {
+            margin: 0;
+            font-size: 1.1em;
+            color: #2c3e50;
+        }
+        .debtor-card p.debt-amount-display { /* Explicitly target the debt amount paragraph */
+            margin: 0;
+            font-weight: bold;
+            white-space: nowrap;
+            /* For desktop, push amount to the right */
+            margin-left: auto; /* Push to right for desktop/larger screens */
+            width: auto; /* Allow content to dictate width */
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        
+        /* Mobile specific adjustments for debtor card */
+        @media (max-width: 600px) {
+            .debtor-card {
+                flex-direction: row; /* Ensure row for mobile layout */
+                align-items: center; /* Vertically center items */
+                justify-content: space-between; /* Space out content */
+            }
+            .debtor-card-info { 
+                flex-direction: row; /* Name, eye, and debt side-by-side */
+                align-items: center; /* Vertically center for single line */
+                flex-grow: 1; /* Allow info to take remaining space */
+                white-space: nowrap; /* Prevent wrapping for entire line */
+                overflow: hidden; /* Hide overflow for entire line */
+                text-overflow: ellipsis; /* Add ellipsis for overflow */
+            }
+            .debtor-card-info h3 { /* Name */
+                margin: 0;
+                font-size: 1.0em; /* Slightly smaller for mobile */
+                flex-shrink: 0; /* Prevent name from shrinking too much */
+                order: 2; /* Put name after eye icon */
+                margin-left: 5px; /* Space between eye icon and name */
+            }
+            .debtor-card p.debt-amount-display { /* Amount */
+                margin: 0;
+                font-size: 0.95em; /* Slightly smaller for mobile */
+                margin-left: auto; /* Push to far right */
+                order: 3; /* Push amount to the end */
+                flex-shrink: 0; /* Prevent from shrinking */
+            }
+            /* Action buttons are now INSIDE debtor-card-info */
+            .debtor-card-info .action-buttons { /* Eye button on the far left */
+                margin-left: 0; /* No extra margin on mobile */
+                flex-shrink: 0;
+                order: 1; /* Put eye button at the start */
+            }
+            .btn-hide-show {
+                font-size: 1em; /* Smaller icon size for mobile */
+                padding: 2px 4px; /* Smaller padding */
+            }
+        }
+
+
+        /* สีตามสถานะหนี้ */
+        .debtor-card.has-overpayment {
+            background-color: #E0F7FA;
+            border: 1px solid #80DEEA;
+        }
+        .debtor-card.has-debt {
+            background-color: #FFF3E0;
+            border: 1px solid #FFCC80;
+        }
+        .debtor-card.no-debt {
+            background-color: #E8F5E9;
+            border: 1px solid #A5D6A7;
+        }
+        .debtor-card.hidden {
+            opacity: 0.6; /* Dim hidden cards */
+            order: 999; /* Push to bottom for sorting */
+        }
+        /* New style: hide debt amount when debtor is hidden */
+        .debtor-card.hidden .debt-amount-display {
+            display: none;
+        }
+
+        .btn-hide-show {
+            background: none; /* Make background transparent */
+            color: #007bff; /* Blue icon color */
+            padding: 4px 8px; 
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.2em; /* Larger icon size for desktop */
+            transition: color 0.2s ease;
+        }
+        .btn-hide-show:hover {
+            color: #0056b3;
+        }
+        /* Style for the eye icon to make it clickable */
+        .btn-hide-show span {
+            display: inline-block; /* Ensure span respects padding/margin */
+        }
+
+
+        .debtor-detail h3 {
+            color: #34495e;
+            font-size: 1.2em;
+        }
+        /* สีสำหรับยอดหนี้ปัจจุบันในหน้า detail */
+        #currentDebtAmount.positive {
+            color: #00838F;
+        }
+        #currentDebtAmount.negative {
+            color: #d35400;
+        }
+        #currentDebtAmount.zero {
+            color: #2E7D32;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #555;
+        }
+
+        /* --- Responsive Table CSS for Mobile --- */
+        @media (max-width: 600px) {
+            table {
+                border: 0; /* Remove table border */
+            }
+            table caption {
+                font-size: 1.3em;
+            }
+            table thead {
+                display: none; /* Hide table header on small screens */
+            }
+            table tr {
+                display: block; /* Make table rows behave like blocks */
+                margin-bottom: .625em; /* Add space between rows */
+                border: 1px solid #ccc; /* Add border around each row block */
+                border-radius: 8px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+                background-color: #fafafa;
+                padding: 10px;
+            }
+            table td {
+                display: block; /* Make table cells behave like blocks */
+                border-bottom: 1px solid #eee; /* Add separator between cells */
+                text-align: right; /* Align cell content to the right */
+                padding-left: 50%; /* Make space for the label */
+                position: relative; /* For pseudo-elements */
+            }
+            table td:last-child {
+                border-bottom: 0; /* No border for the last cell in a row */
+            }
+            table td::before {
+                content: attr(data-label); /* Use data-label attribute for content */
+                position: absolute;
+                left: 6px;
+                width: 45%; /* Occupy left half for label */
+                padding-right: 10px;
+                white-space: nowrap; /* Prevent label from wrapping */
+                text-align: left; /* Align label to the left */
+                font-weight: bold;
+                color: #555;
+            }
+            /* Specific adjustments for Transaction Amount cell to keep color */
+            table td[data-label="จำนวนเงิน"] {
+                font-weight: normal; /* Override bold from ::before, as amount itself is bold */
+            }
+            table td[data-label="จำนวนเงิน"]::before {
+                font-weight: bold; /* Keep the label bold */
+            }
+        }
+        /* --- End Responsive Table CSS --- */
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            font-size: 0.9em;
+            margin-bottom: 3px;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group select { /* Add select for monthly report */
+            width: calc(100% - 18px);
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        .btn {
+            background-color: #28a745; /* Green */
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.2s ease;
+            margin-top: 5px;
+        }
+        .btn-secondary {
+            background-color: #6c757d; /* Gray */
+            margin-left: 8px;
+        }
+        .btn-danger {
+            background-color: #dc3545; /* Red */
+        }
+        .btn-warning {
+            background-color: #ffc107;
+            color: #333;
+        }
+        /* New button colors as requested */
+        #addDebtBtn {
+            background-color: #dc3545; /* Red */
+        }
+        #reduceDebtBtn {
+            background-color: #28a745; /* Green */
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .message {
+            padding: 8px;
+            margin-top: 8px;
+            border-radius: 5px;
+            display: none;
+            font-size: 0.9em;
+        }
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        /* Hidden elements for initial load (Except dashboard, handled by JS) */
+        .debtor-detail, .add-debtor-section, .edit-debtor-section { 
+            display: none; 
+        }
+        .monthly-report {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        .report-history-table-container {
+            margin-top: 20px;
+            max-height: 300px; /* Limit height for scroll */
+            overflow-y: auto; /* Enable vertical scroll */
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .report-history-table-container table {
+            margin-top: 0; /* Remove top margin as it's inside container */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>โปรแกรมบันทึกลูกหนี้ by MW</h1>
+
+        <div class="dashboard" id="dashboardSection">
+            <div class="dashboard-header">
+                <button class="btn" id="showAddDebtorForm">เพิ่มลูกหนี้ใหม่</button>
+            </div>
+            <h2 class="current-date" id="currentDateDisplay" style="margin-top: -10px;"></h2> 
+            <div class="debtor-list" id="debtorList">
+                </div>
+            <button class="btn btn-secondary" id="toggleSortMode" style="margin-top: 15px; width: 100%;">จัดลำดับ</button>
+            <div class="message" id="dashboardMessage"></div> </div>
+
+        <hr>
+
+        <div class="add-debtor-section" id="addDebtorSection">
+            <h2>เพิ่มลูกหนี้ใหม่</h2>
+            <div class="message" id="addDebtorMessage"></div>
+            <div class="form-group">
+                <label for="newDebtorName">ชื่อลูกหนี้:</label>
+                <input type="text" id="newDebtorName" placeholder="เช่น นายสมชาย ใจดี">
+            </div>
+            <div class="form-group">
+                <label for="initialDebtAmount">ยอดหนี้เริ่มต้น (ถ้ามี):</label>
+                <input type="number" id="initialDebtAmount" value="0" min="0">
+            </div>
+            <button class="btn" id="saveNewDebtor">บันทึก</button>
+            <button class="btn btn-secondary" id="cancelAddDebtor">ยกเลิก</button>
+        </div>
+
+        <hr>
+
+        <div class="debtor-detail" id="debtorDetailSection">
+            <h2 id="debtorNameDetail">รายละเอียดหนี้ของ: [ชื่อลูกหนี้]</h2>
+            <p>ยอดหนี้ปัจจุบัน: <span id="currentDebtAmount" class="zero" style="font-weight: bold;">0.00</span> บาท</p>
+
+            <div style="margin-bottom: 15px;">
+                <button class="btn btn-warning" id="showEditDebtorForm">แก้ไขชื่อลูกหนี้</button>
+                <button class="btn btn-danger" id="deleteDebtorBtn">ลบลูกหนี้</button>
+            </div>
+
+            <h3>เพิ่ม/ลด จำนวนหนี้</h3>
+            <div class="message" id="debtTransactionMessage"></div>
+            <div class="form-group">
+                <label for="transactionAmount">จำนวนเงิน:</label>
+                <input type="number" id="transactionAmount" placeholder="เช่น 500" min="0">
+            </div>
+            <div class="form-group">
+                <label for="transactionDescription">รายละเอียด (เช่น ค่าสินค้า, จ่ายคืน):</label>
+                <input type="text" id="transactionDescription" placeholder="เช่น ซื้อของใช้, จ่ายค่าอาหาร" list="commonDescriptions">
+                <datalist id="commonDescriptions"></datalist> 
+            </div>
+            <button class="btn" id="addDebtBtn">เพิ่มหนี้ (+)</button>
+            <button class="btn btn-secondary" id="reduceDebtBtn">ลดหนี้ (-)</button>
+            <button class="btn btn-secondary" id="backToDashboardBtn">กลับ Dashboard</button>
+
+            <h3>ประวัติรายการหนี้ (10 รายการล่าสุด)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>วันที่และเวลา</th>
+                        <th>รายละเอียด</th>
+                        <th>จำนวนเงิน</th>
+                        <th>ประเภท</th>
+                        <th>ยอดคงเหลือ</th>
+                    </tr>
+                </thead>
+                <tbody id="debtHistoryTableBody">
+                    </tbody>
+            </table>
+
+            <div class="monthly-report">
+                <h3>รายงานสรุปหนี้รายเดือน</h3>
+                <div class="form-group">
+                    <label for="monthSelect">เลือกเดือน:</label>
+                    <select id="monthSelect"></select>
+                </div>
+                <p id="monthlySummaryResult"></p>
+                <div id="monthlyReportHistoryTableContainer" class="report-history-table-container" style="display:none;">
+                    <h4>ประวัติรายการหนี้ของเดือนนี้</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>วันที่และเวลา</th>
+                                <th>รายละเอียด</th>
+                                <th>จำนวนเงิน</th>
+                                <th>ประเภท</th>
+                                <th>ยอดคงเหลือ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthlyReportHistoryTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="edit-debtor-section" id="editDebtorSection">
+            <h2>แก้ไขชื่อลูกหนี้</h2>
+            <div class="message" id="editDebtorMessage"></div>
+            <div class="form-group">
+                <label for="editDebtorNameInput">ชื่อลูกหนี้ใหม่:</label>
+                <input type="text" id="editDebtorNameInput" placeholder="ป้อนชื่อใหม่">
+            </div>
+            <button class="btn" id="saveEditedDebtorName">บันทึกการแก้ไข</button>
+            <button class="btn btn-secondary" id="cancelEditDebtor">ยกเลิก</button>
+        </div>
+
+    </div>
+
+    <script>
+        // เพิ่ม Cache-busting mechanism
+        // !!! สำคัญมาก: เปลี่ยนค่านี้ทุกครั้งที่แก้ไขโค้ดและต้องการให้บราวเซอร์มือถือโหลดโค้ดใหม่ทั้งหมด !!!
+        const CACHE_VERSION = 'v1.0.27'; 
+        const APP_STORAGE_KEY = 'debtorsApp';
+        const APP_VERSION_KEY = 'appVersion';
+
+        let debtors = [];
+        let currentDebtorId = null;
+        let commonDescriptions = new Set(); 
+        let draggedItem = null; 
+        let isDragging = false; 
+        let sortingMode = false; 
+
+        let initialTouchY = 0;
+        let initialTouchX = 0;
+        const dragThreshold = 5; 
+        let animationFrameId = null; // To store requestAnimationFrame ID
+
+
+        // --- Utility Functions ---
+
+        function formatDateTime(isoString) {
+            const date = new Date(isoString);
+            const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            return date.toLocaleString('th-TH', options);
+        }
+
+        function formatDate(date) {
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString('th-TH', options);
+        }
+
+        // --- Core Section Switching Function ---
+        function showSection(sectionId, pushHistory = true) {
+            // Hide all sections first
+            document.querySelectorAll('.dashboard, .debtor-detail, .add-debtor-section, .edit-debtor-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            // Show the target section
+            document.getElementById(sectionId).style.display = 'block';
+
+            // --- History API Management ---
+            if (pushHistory) {
+                if (sectionId === 'dashboardSection') {
+                    currentDebtorId = null; // Clear current debtor when navigating to dashboard
+                    history.pushState({ section: 'dashboardSection' }, '', '#dashboard');
+                } else if (sectionId === 'debtorDetailSection' && currentDebtorId !== null) {
+                    history.pushState({ section: sectionId, debtorId: currentDebtorId }, '', `#debtor-${currentDebtorId}`);
+                } else {
+                    history.replaceState({ section: sectionId, debtorId: currentDebtorId }, '', `#${sectionId}`);
+                }
+            }
+            
+            // Render the debtor list whenever we show the dashboard
+            if (sectionId === 'dashboardSection') {
+                renderDebtorList(); // Make sure dashboard is always up-to-date
+            }
+        }
+
+        function showMessage(elementId, message, type) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = `message ${type}`;
+            el.style.display = 'block';
+            setTimeout(() => {
+                el.style.display = 'none';
+            }, 3000);
+        }
+
+        // --- Data Management (Local Storage) ---
+
+        function loadDebtors() {
+            const storedVersion = localStorage.getItem(APP_VERSION_KEY);
+            const storedDebtors = localStorage.getItem(APP_STORAGE_KEY);
+
+            // Important: Check version and clear cache if mismatch
+            if (storedVersion !== CACHE_VERSION) {
+                console.warn(`App version mismatch. Stored: ${storedVersion}, Current: ${CACHE_VERSION}. Clearing old data.`);
+                localStorage.removeItem(APP_STORAGE_KEY);
+                localStorage.removeItem('commonDescriptions'); // Clear old descriptions too
+                localStorage.setItem(APP_VERSION_KEY, CACHE_VERSION); // Set new version
+                debtors = []; // Reset debtors array
+                commonDescriptions = new Set(); // Reset common descriptions
+                showMessage('dashboardMessage', 'อัปเดตเวอร์ชันแอปแล้ว ข้อมูลเก่าจะถูกรีเซ็ตหากไม่เข้ากัน', 'warning');
+                renderDebtorList(); // Render empty list or default state
+                return; // Stop further processing to avoid parsing old data
+            }
+
+            if (storedDebtors) {
+                try {
+                    const parsedDebtors = JSON.parse(storedDebtors);
+                    
+                    debtors = parsedDebtors.map(d => {
+                        let validatedDebtor = {
+                            id: typeof d.id === 'number' ? d.id : (Math.random() * 1000000000 | 0),
+                            name: typeof d.name === 'string' && d.name.length > 0 ? d.name : 'Unknown Debtor',
+                            totalDebt: typeof d.totalDebt === 'number' ? d.totalDebt : 0,
+                            history: Array.isArray(d.history) ? d.history.map(h => ({
+                                dateTime: typeof h.dateTime === 'string' ? h.dateTime : new Date().toISOString(),
+                                description: typeof h.description === 'string' ? h.description : 'Undefined',
+                                amount: typeof h.amount === 'number' ? h.amount : 0,
+                                type: ['เพิ่ม', 'ลด'].includes(h.type) ? h.type : 'Unknown',
+                                balance: typeof h.balance === 'number' ? h.balance : 0
+                            })) : [],
+                            isHidden: typeof d.isHidden === 'boolean' ? d.isHidden : false,
+                            order: typeof d.order === 'number' ? d.order : -1
+                        };
+                        return validatedDebtor;
+                    });
+                    
+                    // Re-order and save to ensure consistent order property
+                    debtors.sort((a, b) => a.order - b.order);
+                    debtors.forEach((d, index) => {
+                        d.order = index;
+                    });
+
+                    saveDebtors(); // Save back the cleaned and re-ordered data
+                    console.log("Debtors loaded and sanitized successfully.");
+
+                } catch (e) {
+                    console.error("Error parsing or validating stored debtors from Local Storage:", e);
+                    debtors = []; 
+                    localStorage.removeItem(APP_STORAGE_KEY); // Clear bad data
+                    localStorage.setItem(APP_VERSION_KEY, CACHE_VERSION); // Update version to avoid re-parsing old bad data
+                    showMessage('dashboardMessage', 'ข้อมูลลูกหนี้เสียหาย จะเริ่มต้นใหม่!', 'error');
+                }
+            } else {
+                debtors = [];
+                localStorage.setItem(APP_VERSION_KEY, CACHE_VERSION); // Set version for fresh start
+                console.log("No debtors found in Local Storage. Starting fresh.");
+            }
+            renderDebtorList(); // Always render after loading
+        }
+
+        function saveDebtors() {
+            localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(debtors));
+        }
+
+        function loadCommonDescriptions() {
+            const storedDescriptions = localStorage.getItem('commonDescriptions');
+            if (storedDescriptions) {
+                try {
+                    commonDescriptions = new Set(JSON.parse(storedDescriptions));
+                } catch (e) {
+                    console.error("Error parsing common descriptions from Local Storage:", e);
+                    commonDescriptions = new Set();
+                }
+            } else {
+                commonDescriptions = new Set();
+            }
+            populateCommonDescriptionsDatalist();
+        }
+
+        function saveCommonDescriptions() {
+            localStorage.setItem('commonDescriptions', JSON.stringify(Array.from(commonDescriptions)));
+        }
+
+        function addCommonDescription(description) {
+            if (description && !commonDescriptions.has(description)) {
+                commonDescriptions.add(description);
+                saveCommonDescriptions();
+                populateCommonDescriptionsDatalist(); 
+            }
+        }
+
+        function populateCommonDescriptionsDatalist() {
+            const datalist = document.getElementById('commonDescriptions');
+            datalist.innerHTML = ''; 
+            Array.from(commonDescriptions).forEach(desc => {
+                const option = document.createElement('option');
+                option.value = desc;
+                datalist.appendChild(option);
+            });
+        }
+
+        // --- Dashboard Functions ---
+
+        function renderDebtorList() {
+            const debtorListDiv = document.getElementById('debtorList');
+            // Clear existing content and all associated event listeners
+            debtorListDiv.innerHTML = ''; 
+
+            const sortedDebtors = [...debtors].sort((a, b) => {
+                if (a.isHidden && !b.isHidden) return 1;
+                if (!a.isHidden && b.isHidden) return -1;
+                return a.order - b.order;
+            });
+
+            if (sortedDebtors.length === 0) {
+                debtorListDiv.innerHTML = '<p>ยังไม่มีลูกหนี้ในระบบ</p>';
+                return;
+            }
+
+            sortedDebtors.forEach(debtor => {
+                const card = document.createElement('div');
+                let cardClass = '';
+                if (debtor.totalDebt > 0) {
+                    cardClass = 'has-debt';
+                } else if (debtor.totalDebt < 0) {
+                    cardClass = 'has-overpayment';
+                } else {
+                    cardClass = 'no-debt';
+                }
+
+                if (debtor.isHidden) {
+                    cardClass += ' hidden';
+                }
+
+                card.className = `debtor-card ${cardClass}`;
+                card.dataset.id = debtor.id;
+                card.draggable = sortingMode; 
+
+                if (sortingMode) {
+                    card.classList.add('sorting-mode');
+                }
+
+                let displayAmount = debtor.totalDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                if (debtor.totalDebt < 0) {
+                    displayAmount = `+${Math.abs(debtor.totalDebt).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                } else if (debtor.totalDebt === 0) {
+                    displayAmount = `0.00`;
+                }
+
+                const eyeIcon = debtor.isHidden ? '👁️‍🗨️' : '👁️'; 
+                
+                card.innerHTML = `
+                    <div class="debtor-card-info" data-id="${debtor.id}">
+                        <div class="action-buttons">
+                            <button class="btn-hide-show" data-id="${debtor.id}"><span>${eyeIcon}</span></button>
+                        </div>
+                        <h3>${debtor.name}</h3>
+                        <p class="debt-amount-display">${displayAmount}</p>
+                    </div>
+                `;
+                
+                // Attach click listener to the entire card element
+                card.addEventListener('click', (event) => {
+                    // Prevent click if we are in sorting mode or if a drag operation was detected
+                    // Also prevent if the click target is the hide/show button itself
+                    if (!sortingMode && !isDragging && !event.target.closest('.btn-hide-show')) { 
+                        showDebtorDetail(debtor.id);
+                    }
+                });
+
+                // Attach click listener directly to the hide/show button
+                card.querySelector('.btn-hide-show').addEventListener('click', (event) => {
+                    event.stopPropagation(); // Prevent card click event from firing
+                    toggleDebtorVisibility(debtor.id);
+                });
+
+                debtorListDiv.appendChild(card);
+            });
+
+            addDragDropListeners(); // Re-attach drag/drop listeners to new elements
+        }
+
+        function toggleDebtorVisibility(id) {
+            const debtorIndex = debtors.findIndex(d => d.id === id);
+            if (debtorIndex > -1) {
+                debtors[debtorIndex].isHidden = !debtors[debtorIndex].isHidden;
+                saveDebtors();
+                renderDebtorList(); 
+            }
+        }
+
+        function displayCurrentDate() {
+            const dateDisplay = document.getElementById('currentDateDisplay');
+            const currentDate = new Date(); 
+            dateDisplay.textContent = formatDate(currentDate);
+        }
+
+        // --- Drag and Drop Functions ---
+        function addDragDropListeners() {
+            const debtorCards = document.querySelectorAll('.debtor-card');
+
+            const clearBorders = () => {
+                document.querySelectorAll('.debtor-card').forEach(c => {
+                    c.style.borderTop = '';
+                    c.style.borderBottom = '';
+                });
+            };
+
+            // Helper function to reset draggedItem styles
+            const resetDraggedItemStyles = () => {
+                if (draggedItem) {
+                    draggedItem.classList.remove('dragging');
+                    draggedItem.style.position = '';
+                    draggedItem.style.width = '';
+                    draggedItem.style.height = '';
+                    draggedItem.style.left = '';
+                    draggedItem.style.top = '';
+                    draggedItem.style.zIndex = '';
+                }
+            };
+
+            debtorCards.forEach(card => {
+                // Desktop Drag & Drop
+                card.addEventListener('dragstart', (e) => {
+                    if (!sortingMode) { 
+                        e.preventDefault(); 
+                        return;
+                    }
+                    draggedItem = card;
+                    isDragging = true;
+                    e.dataTransfer.effectAllowed = 'move';
+                    setTimeout(() => card.classList.add('dragging'), 0); 
+                });
+
+                card.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    if (sortingMode && card !== draggedItem && !card.classList.contains('dragging')) {
+                        clearBorders(); 
+                        card.style.borderTop = '2px solid #007bff'; 
+                    }
+                });
+
+                card.addEventListener('dragleave', () => {
+                    if (sortingMode) {
+                        clearBorders();
+                    }
+                });
+
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault(); 
+                    if (sortingMode) {
+                        e.dataTransfer.dropEffect = 'move';
+                        if (card !== draggedItem) {
+                            const boundingBox = card.getBoundingClientRect();
+                            const offset = boundingBox.y + (boundingBox.height / 2);
+                            clearBorders(); 
+                            if (e.clientY < offset) {
+                                card.style.borderTop = '2px solid #007bff';
+                            } else {
+                                card.style.borderBottom = '2px solid #007bff';
+                            }
+                        }
+                    }
+                });
+
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (sortingMode) {
+                        clearBorders();
+                        if (draggedItem && draggedItem !== card) {
+                            handleDrop(draggedItem, card, e.clientY);
+                        }
+                    }
+                    isDragging = false; 
+                });
+
+                card.addEventListener('dragend', () => {
+                    resetDraggedItemStyles(); 
+                    draggedItem = null;
+                    clearBorders();
+                    isDragging = false; 
+                });
+
+                // Mobile Touch Drag & Drop
+                card.addEventListener('touchstart', (e) => {
+                    if (!sortingMode) { 
+                        return;
+                    }
+                    if (e.touches.length === 1) {
+                        draggedItem = card;
+                        initialTouchY = e.touches[0].clientY; 
+                        initialTouchX = e.touches[0].clientX; 
+                        isDragging = false; 
+                    }
+                }, { passive: false }); 
+
+                card.addEventListener('touchmove', (e) => {
+                    if (!sortingMode || !draggedItem) { 
+                        return;
+                    }
+
+                    const currentTouchY = e.touches[0].clientY;
+                    const currentTouchX = e.touches[0].clientX;
+                    const deltaY = currentTouchY - initialTouchY;
+                    const deltaX = currentTouchX - initialTouchX;
+
+                    if (!isDragging && (Math.abs(deltaY) > dragThreshold || Math.abs(deltaX) > dragThreshold)) {
+                        isDragging = true;
+                        draggedItem.classList.add('dragging');
+                        const rect = draggedItem.getBoundingClientRect();
+                        draggedItem.style.position = 'fixed'; 
+                        draggedItem.style.width = rect.width + 'px';
+                        draggedItem.style.height = rect.height + 'px';
+                        // Initial position for fixed element
+                        draggedItem.style.left = rect.left + 'px';
+                        draggedItem.style.top = rect.top + 'px';
+                        draggedItem.style.zIndex = '1000'; 
+
+                        if (navigator.vibrate) navigator.vibrate(50);
+                    }
+
+                    if (isDragging) {
+                        e.preventDefault(); // Prevent scrolling
+
+                        if (animationFrameId) {
+                            cancelAnimationFrame(animationFrameId);
+                        }
+                        animationFrameId = requestAnimationFrame(() => {
+                            if (draggedItem) {
+                                draggedItem.style.left = (currentTouchX - draggedItem.offsetWidth / 2) + 'px';
+                                draggedItem.style.top = (currentTouchY - draggedItem.offsetHeight / 2) + 'px';
+                            }
+                        });
+
+                        let targetCard = document.elementFromPoint(currentTouchX, currentTouchY);
+
+                        while (targetCard && !targetCard.classList.contains('debtor-card') && targetCard.parentElement) {
+                            targetCard = targetCard.parentElement;
+                        }
+                        
+                        clearBorders(); 
+
+                        if (targetCard && targetCard !== draggedItem) {
+                            const boundingBox = targetCard.getBoundingClientRect();
+                            const offset = boundingBox.y + (boundingBox.height / 2);
+                            if (currentTouchY < offset) {
+                                targetCard.style.borderTop = '2px solid #007bff';
+                            } else {
+                                targetCard.style.borderBottom = '2px solid #007bff';
+                            }
+                        }
+                    }
+                }, { passive: false }); 
+
+                card.addEventListener('touchend', (e) => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null;
+                    }
+
+                    resetDraggedItemStyles(); 
+                    clearBorders(); 
+
+                    if (!sortingMode) { 
+                        draggedItem = null; 
+                        isDragging = false;
+                        return;
+                    }
+                    
+                    if (isDragging) { 
+                        const touch = e.changedTouches[0];
+                        let targetCard = document.elementFromPoint(touch.clientX, touch.clientY);
+
+                        while (targetCard && !targetCard.classList.contains('debtor-card') && targetCard.parentElement) {
+                            targetCard = targetCard.parentElement;
+                        }
+                        
+                        if (targetCard && targetCard.dataset.id && targetCard.dataset.id != draggedItem.dataset.id) {
+                            handleDrop(draggedItem, targetCard, touch.clientY);
+                        } else {
+                            renderDebtorList(); 
+                        }
+                    }
+                    
+                    draggedItem = null;
+                    isDragging = false; 
+                });
+
+                card.addEventListener('touchcancel', () => {
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null;
+                    }
+                    resetDraggedItemStyles(); 
+                    draggedItem = null;
+                    isDragging = false;
+                    clearBorders();
+                });
+            });
+        }
+
+        function handleDrop(draggedElement, targetElement, clientY) {
+            const draggedId = parseInt(draggedElement.dataset.id);
+            const targetId = parseInt(targetElement.dataset.id);
+
+            const draggedIndex = debtors.findIndex(d => d.id === draggedId);
+            const targetIndex = debtors.findIndex(d => d.id === targetId);
+
+            if (draggedIndex > -1 && targetIndex > -1) {
+                const [removed] = debtors.splice(draggedIndex, 1);
+                
+                const boundingBox = targetElement.getBoundingClientRect();
+                const offset = boundingBox.y + (boundingBox.height / 2);
+                
+                let insertIndex;
+                const currentDebtorsIds = debtors.map(d => d.id); 
+                const newTargetIndexInModifiedArray = currentDebtorsIds.indexOf(targetId);
+
+                if (newTargetIndexInModifiedArray === -1) {
+                    insertIndex = debtors.length; 
+                } else if (clientY < offset) { 
+                    insertIndex = newTargetIndexInModifiedArray;
+                } else { 
+                    insertIndex = newTargetIndexInModifiedArray + 1;
+                }
+                
+                debtors.splice(insertIndex, 0, removed);
+                
+                // Update order property for all debtors
+                debtors.forEach((d, index) => {
+                    d.order = index;
+                });
+
+                saveDebtors(); 
+                renderDebtorList(); 
+            } else {
+                renderDebtorList(); 
+            }
+        }
+
+        // --- Debtor Detail Functions ---
+
+        function showDebtorDetail(id) {
+            currentDebtorId = id;
+            const debtor = debtors.find(d => d.id === id);
+            if (debtor) {
+                document.getElementById('debtorNameDetail').textContent = `รายละเอียดหนี้ของ: ${debtor.name}`;
+                const currentDebtAmountSpan = document.getElementById('currentDebtAmount');
+                currentDebtAmountSpan.textContent = debtor.totalDebt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                
+                currentDebtAmountSpan.className = '';
+                if (debtor.totalDebt > 0) {
+                    currentDebtAmountSpan.classList.add('negative');
+                } else if (debtor.totalDebt < 0) {
+                    currentDebtAmountSpan.classList.add('positive');
+                } else {
+                    currentDebtAmountSpan.classList.add('zero');
+                }
+
+                renderDebtHistory(debtor.history, 10); 
+                populateMonthlyReportDropdown(debtor.history);
+                populateCommonDescriptionsDatalist(); 
+                
+                document.getElementById('monthlyReportHistoryTableContainer').style.display = 'none';
+                document.getElementById('monthlySummaryResult').textContent = ''; 
+                document.getElementById('monthSelect').value = ''; 
+
+                showSection('debtorDetailSection', true); 
+            }
+        }
+
+        function renderDebtHistory(historyToRender, limit = historyToRender.length) {
+            const historyTableBody = document.getElementById('debtHistoryTableBody');
+            historyTableBody.innerHTML = '';
+            if (historyToRender.length === 0) {
+                historyTableBody.innerHTML = '<tr><td colspan="5">ยังไม่มีประวัติรายการหนี้</td></tr>';
+                return;
+            }
+            const sortedAndLimitedHistory = [...historyToRender].sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime)).slice(0, limit);
+
+            const columnLabels = ['วันที่และเวลา', 'รายละเอียด', 'จำนวนเงิน', 'ประเภท', 'ยอดคงเหลือ'];
+
+            sortedAndLimitedHistory.forEach(item => {
+                const row = historyTableBody.insertRow();
+                let amountDisplay = item.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                let amountColor = '#333';
+
+                if (item.type === 'เพิ่ม') {
+                    amountColor = '#dc3545'; 
+                    amountDisplay = `+${amountDisplay}`;
+                } else if (item.type === 'ลด') {
+                    amountColor = '#28a745'; 
+                    amountDisplay = `-${amountDisplay}`;
+                }
+                
+                row.innerHTML = `
+                    <td data-label="${columnLabels[0]}">${formatDateTime(item.dateTime)}</td>
+                    <td data-label="${columnLabels[1]}">${item.description}</td>
+                    <td data-label="${columnLabels[2]}" style="color: ${amountColor};">${amountDisplay}</td>
+                    <td data-label="${columnLabels[3]}">${item.type}</td>
+                    <td data-label="${columnLabels[4]}">${item.balance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                `;
+            });
+        }
+
+
+        function populateMonthlyReportDropdown(history) {
+            const monthSelect = document.getElementById('monthSelect');
+            // Remove existing event listener to prevent duplicates
+            monthSelect.removeEventListener('change', generateMonthlyReport);
+            
+            monthSelect.innerHTML = '<option value="">-- เลือกเดือน --</option>'; 
+
+            const yearsMonths = new Set(); 
+
+            history.forEach(item => {
+                const date = new Date(item.dateTime);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0'); 
+                yearsMonths.add(`${year}-${month}`);
+            });
+
+            const sortedYearsMonths = Array.from(yearsMonths).sort((a, b) => b.localeCompare(a));
+
+            const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+
+            sortedYearsMonths.forEach(ym => {
+                const [year, month] = ym.split('-');
+                const monthName = monthNames[parseInt(month) - 1];
+                const option = document.createElement('option');
+                option.value = ym; 
+                option.textContent = `${monthName} ${parseInt(year) + 543}`; 
+                monthSelect.appendChild(option);
+            });
+
+            // Re-attach event listener
+            monthSelect.addEventListener('change', generateMonthlyReport); 
+            document.getElementById('monthlySummaryResult').textContent = ''; 
+        }
+
+        function generateMonthlyReport() {
+            const monthSelect = document.getElementById('monthSelect');
+            const selectedMonthYear = monthSelect.value; 
+            const resultParagraph = document.getElementById('monthlySummaryResult');
+            const monthlyReportHistoryTableContainer = document.getElementById('monthlyReportHistoryTableContainer');
+            const monthlyReportHistoryTableBody = document.getElementById('monthlyReportHistoryTableBody');
+
+            monthlyReportHistoryTableContainer.style.display = 'none'; 
+            monthlyReportHistoryTableBody.innerHTML = ''; 
+
+            if (!selectedMonthYear) {
+                resultParagraph.textContent = '';
+                return;
+            }
+
+            const debtor = debtors.find(d => d.id === currentDebtorId);
+            if (!debtor || !debtor.history) {
+                resultParagraph.textContent = 'ไม่พบข้อมูลประวัติหนี้.';
+                return;
+            }
+
+            let totalDebtAddedInMonth = 0;
+            let foundEntriesInMonth = false;
+
+            const entriesInSelectedMonth = debtor.history.filter(item => {
+                const itemDate = new Date(item.dateTime);
+                const itemYearMonth = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
+                return itemYearMonth === selectedMonthYear;
+            }); 
+
+            if (entriesInSelectedMonth.length > 0) {
+                foundEntriesInMonth = true;
+                entriesInSelectedMonth.forEach(item => {
+                    if (item.type === 'เพิ่ม') {
+                        totalDebtAddedInMonth += item.amount;
+                    }
+                });
+
+                const sortedMonthlyHistory = [...entriesInSelectedMonth].sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+                renderReportHistoryTable(sortedMonthlyHistory);
+                monthlyReportHistoryTableContainer.style.display = 'block'; 
+            }
+            
+            const [year, month] = selectedMonthYear.split('-');
+            const monthName = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"][parseInt(month) - 1];
+            const thaiYear = parseInt(year) + 543;
+
+            if (foundEntriesInMonth) {
+                resultParagraph.textContent = `ยอดหนี้ที่เพิ่มในเดือน ${monthName} ${thaiYear}: ${totalDebtAddedInMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+            } else {
+                resultParagraph.textContent = `ไม่มีรายการหนี้ในเดือน ${monthName} ${thaiYear}.`;
+            }
+        }
+
+        function renderReportHistoryTable(historyToRender) {
+            const monthlyReportHistoryTableBody = document.getElementById('monthlyReportHistoryTableBody');
+            monthlyReportHistoryTableBody.innerHTML = '';
+            if (historyToRender.length === 0) {
+                monthlyReportHistoryTableBody.innerHTML = '<tr><td colspan="5">ไม่มีประวัติรายการหนี้สำหรับเดือนนี้</td></tr>';
+                return;
+            }
+            const columnLabels = ['วันที่และเวลา', 'รายละเอียด', 'จำนวนเงิน', 'ประเภท', 'ยอดคงเหลือ'];
+
+            historyToRender.forEach(item => {
+                const row = monthlyReportHistoryTableBody.insertRow();
+                let amountDisplay = item.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                let amountColor = '#333';
+
+                if (item.type === 'เพิ่ม') {
+                    amountColor = '#dc3545'; 
+                    amountDisplay = `+${amountDisplay}`;
+                } else if (item.type === 'ลด') {
+                    amountColor = '#28a745'; 
+                    amountDisplay = `-${amountDisplay}`;
+                }
+                
+                row.innerHTML = `
+                    <td data-label="${columnLabels[0]}">${formatDateTime(item.dateTime)}</td>
+                    <td data-label="${columnLabels[1]}">${item.description}</td>
+                    <td data-label="${columnLabels[2]}" style="color: ${amountColor};">${amountDisplay}</td>
+                    <td data-label="${columnLabels[3]}">${item.type}</td>
+                    <td data-label="${columnLabels[4]}">${item.balance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                `;
+            });
+        }
+
+
+        // --- Transaction & Debtor Management ---
+
+        function addDebtTransaction(type) {
+            const amountInput = document.getElementById('transactionAmount');
+            const descriptionInput = document.getElementById('transactionDescription');
+            const amount = parseFloat(amountInput.value); 
+            const description = descriptionInput.value.trim();
+
+            if (isNaN(amount) || amount <= 0) {
+                showMessage('debtTransactionMessage', 'โปรดป้อนจำนวนเงินที่ถูกต้อง (ตัวเลขและมากกว่า 0)', 'error');
+                return;
+            }
+            if (!description) {
+                showMessage('debtTransactionMessage', 'โปรดป้อนรายละเอียดรายการ', 'error');
+                return;
+            }
+
+            const debtorIndex = debtors.findIndex(d => d.id === currentDebtorId);
+            if (debtorIndex > -1) {
+                let currentDebtor = debtors[debtorIndex];
+                let newTotalDebt = currentDebtor.totalDebt;
+
+                if (type === 'add') {
+                    newTotalDebt += amount;
+                } else if (type === 'reduce') {
+                    newTotalDebt -= amount; 
+                }
+
+                const newHistoryItem = {
+                    dateTime: new Date().toISOString(),
+                    description: description,
+                    amount: amount,
+                    type: type === 'add' ? 'เพิ่ม' : 'ลด',
+                    balance: newTotalDebt
+                };
+
+                currentDebtor.totalDebt = newTotalDebt;
+                currentDebtor.history.push(newHistoryItem);
+                
+                addCommonDescription(description); 
+                saveDebtors();
+                showDebtorDetail(currentDebtorId); 
+                showMessage('debtTransactionMessage', 'ทำรายการสำเร็จ!', 'success');
+
+                amountInput.value = '';
+                descriptionInput.value = '';
+            } else {
+                showMessage('debtTransactionMessage', 'ไม่พบลูกหนี้ที่เลือก กรุณาลองใหม่', 'error');
+            }
+        }
+
+        function addNewDebtor() {
+            const newDebtorName = document.getElementById('newDebtorName').value.trim();
+            const initialDebtAmount = parseFloat(document.getElementById('initialDebtAmount').value);
+
+            if (!newDebtorName) {
+                showMessage('addDebtorMessage', 'โปรดป้อนชื่อลูกหนี้', 'error');
+                return;
+            }
+
+            if (debtors.some(d => d.name === newDebtorName)) {
+                showMessage('addDebtorMessage', 'ชื่อลูกหนี้ซ้ำ กรุณาใช้ชื่ออื่น', 'error');
+                return;
+            }
+
+            const newId = debtors.length > 0 ? Math.max(...debtors.map(d => d.id)) + 1 : 1;
+            let newDebtor = {
+                id: newId,
+                name: newDebtorName,
+                totalDebt: initialDebtAmount || 0,
+                history: [],
+                isHidden: false, 
+                order: debtors.length 
+            };
+
+            if (initialDebtAmount > 0) {
+                newDebtor.history.push({
+                    dateTime: new Date().toISOString(),
+                    description: 'ยอดหนี้เริ่มต้น',
+                    amount: initialDebtAmount,
+                    type: 'เพิ่ม',
+                    balance: initialDebtAmount
+                });
+                addCommonDescription('ยอดหนี้เริ่มต้น'); 
+            }
+
+            debtors.push(newDebtor);
+            saveDebtors();
+            showMessage('addDebtorMessage', 'เพิ่มลูกหนี้สำเร็จ!', 'success');
+            
+            document.getElementById('newDebtorName').value = '';
+            document.getElementById('initialDebtAmount').value = '0';
+            showSection('dashboardSection'); 
+        }
+
+        function showEditDebtorForm() {
+            const debtor = debtors.find(d => d.id === currentDebtorId);
+            if (debtor) {
+                document.getElementById('editDebtorNameInput').value = debtor.name;
+                showSection('editDebtorSection'); 
+                document.getElementById('editDebtorNameInput').focus();
+            }
+        }
+
+        function saveEditedDebtorName() {
+            const newName = document.getElementById('editDebtorNameInput').value.trim();
+            if (!newName) {
+                showMessage('editDebtorMessage', 'โปรดป้อนชื่อลูกหนี้', 'error');
+                return;
+            }
+
+            const debtorIndex = debtors.findIndex(d => d.id === currentDebtorId);
+            if (debtorIndex > -1) {
+                if (debtors.some(d => d.name === newName && d.id !== currentDebtorId)) {
+                    showMessage('editDebtorMessage', 'ชื่อลูกหนี้ซ้ำ กรุณาใช้ชื่ออื่น', 'error');
+                    return;
+                }
+
+                debtors[debtorIndex].name = newName;
+                saveDebtors();
+                showMessage('editDebtorMessage', 'แก้ไขชื่อลูกหนี้สำเร็จ!', 'success');
+                showDebtorDetail(currentDebtorId); 
+            } else {
+                showMessage('editDebtorMessage', 'ไม่พบลูกหนี้ที่เลือก', 'error');
+            }
+        }
+
+        function deleteDebtor() {
+            if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบลูกหนี้คนนี้? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) {
+                const initialDebtorCount = debtors.length;
+                debtors = debtors.filter(d => d.id !== currentDebtorId);
+                
+                debtors.forEach((d, index) => {
+                    d.order = index;
+                });
+
+                if (debtors.length < initialDebtorCount) {
+                    saveDebtors();
+                    showSection('dashboardSection'); 
+                    showMessage('dashboardMessage', 'ลบลูกหนี้สำเร็จ!', 'success'); 
+                    currentDebtorId = null;
+                } else {
+                    showMessage('debtTransactionMessage', 'ไม่สามารถลบลูกหนี้ได้', 'error');
+                }
+            }
+        }
+
+        // --- Event Listeners ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDebtors(); 
+            loadCommonDescriptions(); 
+            displayCurrentDate();
+            
+            window.addEventListener('popstate', (event) => {
+                console.log("Popstate event fired. State:", event.state);
+                if (event.state && event.state.section) {
+                    currentDebtorId = event.state.debtorId || null;
+                    showSection(event.state.section, false); 
+                } else {
+                    currentDebtorId = null;
+                    showSection('dashboardSection', false); 
+                }
+            });
+            history.replaceState({ section: 'dashboardSection' }, '', '#dashboard'); 
+        });
+
+        document.getElementById('showAddDebtorForm').addEventListener('click', () => {
+            showSection('addDebtorSection');
+            document.getElementById('newDebtorName').focus();
+        });
+        document.getElementById('cancelAddDebtor').addEventListener('click', () => {
+            document.getElementById('newDebtorName').value = '';
+            document.getElementById('initialDebtAmount').value = '0';
+            showSection('dashboardSection'); 
+        });
+        document.getElementById('saveNewDebtor').addEventListener('click', addNewDebtor);
+
+        document.getElementById('addDebtBtn').addEventListener('click', () => addDebtTransaction('add'));
+        document.getElementById('reduceDebtBtn').addEventListener('click', () => addDebtTransaction('reduce'));
+        document.getElementById('backToDashboardBtn').addEventListener('click', () => {
+            showSection('dashboardSection'); 
+        });
+
+        document.getElementById('showEditDebtorForm').addEventListener('click', showEditDebtorForm);
+        document.getElementById('saveEditedDebtorName').addEventListener('click', saveEditedDebtorName);
+        document.getElementById('cancelEditDebtor').addEventListener('click', () => {
+            showDebtorDetail(currentDebtorId); 
+        });
+        document.getElementById('deleteDebtorBtn').addEventListener('click', deleteDebtor);
+
+        // --- Toggle Sort Mode Button ---
+        document.getElementById('toggleSortMode').addEventListener('click', () => {
+            sortingMode = !sortingMode; 
+            const toggleSortButton = document.getElementById('toggleSortMode');
+            
+            renderDebtorList(); 
+
+            if (sortingMode) {
+                toggleSortButton.textContent = 'จัดเสร็จ';
+                toggleSortButton.classList.remove('btn-secondary');
+                toggleSortButton.classList.add('btn-primary'); 
+                showMessage('dashboardMessage', 'เข้าสู่โหมดจัดลำดับ: แตะแล้วลากการ์ดเพื่อเปลี่ยนตำแหน่ง', 'success');
+            } else {
+                toggleSortButton.textContent = 'จัดลำดับ';
+                toggleSortButton.classList.remove('btn-primary');
+                toggleSortButton.classList.add('btn-secondary'); 
+                showMessage('dashboardMessage', 'บันทึกลำดับใหม่เรียบร้อยแล้ว', 'success');
+            }
+        });
+    </script>
+</body>
+</html>
